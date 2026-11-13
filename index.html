@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fluxxche Battle</title>
+  <script src="https://telegram.org"></script>
+  <style>
+    body {
+      background-color: #0f111a;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      text-align: center;
+      padding: 15px;
+      margin: 0;
+    }
+    .card {
+      background: #1a1d2d;
+      border-radius: 16px;
+      padding: 15px;
+      margin-bottom: 15px;
+      border: 1px solid #2a2f45;
+    }
+    .title-badge {
+      display: inline-block;
+      background: linear-gradient(90deg, #ff416c, #ff4b2b);
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .hp-bar-bg {
+      background: #333;
+      border-radius: 10px;
+      height: 18px;
+      width: 100%;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .hp-bar-fill {
+      height: 100%;
+      transition: width 0.2s;
+    }
+    .enemy-hp { background: #ff4b2b; }
+    .player-hp { background: #00e676; }
+    .log {
+      font-size: 14px;
+      color: #a0a8c0;
+      min-height: 22px;
+      margin: 10px 0;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    button {
+      border: none;
+      padding: 15px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 12px;
+      cursor: pointer;
+      flex: 1;
+      color: white;
+    }
+    button:active { transform: scale(0.96); }
+    .btn-atk { background: #ff4b2b; }
+    .btn-heal { background: #00b09b; }
+    .titles-list {
+      text-align: left;
+      font-size: 14px;
+    }
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #2a2f45;
+    }
+    .title-row button {
+      flex: none;
+      padding: 6px 12px;
+      font-size: 13px;
+      background: #3a415a;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Блок врага -->
+  <div class="card">
+    <h3 id="enemyName">👾 Слизень (Ур. 1)</h3>
+    <div class="hp-bar-bg">
+      <div class="hp-bar-fill enemy-hp" id="enemyHpBar" style="width: 100%;"></div>
+    </div>
+    <div id="enemyHpText">HP: 50 / 50</div>
+  </div>
+
+  <!-- Лог боя -->
+  <div class="log" id="battleLog">Нажми «Атаковать», чтобы начать бой!</div>
+
+  <!-- Блок игрока -->
+  <div class="card">
+    <div class="title-badge" id="playerTitle">Новичок</div>
+    <h3 id="playerName">Герой</h3>
+    <div class="hp-bar-bg">
+      <div class="hp-bar-fill player-hp" id="playerHpBar" style="width: 100%;"></div>
+    </div>
+    <div id="playerHpText">HP: 100 / 100 | Побед: 0</div>
+
+    <div class="actions" style="margin-top: 15px;">
+      <button class="btn-atk" onclick="attack()">⚔️ Атаковать</button>
+      <button class="btn-heal" onclick="heal()">🧪 Лечиться (+25)</button>
+    </div>
+  </div>
+
+  <!-- Титулы -->
+  <div class="card titles-list">
+    <h4 style="margin-top: 0;">🏆 Титулы за победы:</h4>
+    <div class="title-row">
+      <span>Новичок (0 побед)</span>
+      <button onclick="setTitle('Новичок', 0)">Надеть</button>
+    </div>
+    <div class="title-row">
+      <span>Охотник (3 победы)</span>
+      <button onclick="setTitle('Охотник', 3)">Надеть</button>
+    </div>
+    <div class="title-row">
+      <span>Убийца Боссов (10 побед)</span>
+      <button onclick="setTitle('Убийца Боссов', 10)">Надеть</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    const user = tg.initDataUnsafe?.user;
+    if (user) {
+      document.getElementById('playerName').innerText = user.first_name;
+    }
+
+    const enemies = [
+      { name: "👾 Слизень", maxHp: 50, atk: 8 },
+      { name: "🐺 Лесной Волк", maxHp: 80, atk: 12 },
+      { name: "💀 Скелет-Воин", maxHp: 120, atk: 16 },
+      { name: "🐉 Дракон Fluxxche", maxHp: 200, atk: 22 }
+    ];
+
+    let wins = Number(localStorage.getItem('wins')) || 0;
+    let activeTitle = localStorage.getItem('activeTitle') || 'Новичок';
+    let playerHp = 100;
+    let playerMaxHp = 100;
+
+    let currentEnemyIndex = Math.min(Math.floor(wins / 2), enemies.length - 1);
+    let enemyMaxHp = enemies[currentEnemyIndex].maxHp;
+    let enemyHp = enemyMaxHp;
+
+    updateUI();
+
+    function attack() {
+      // Игрок бьет врага (урон от 12 до 22)
+      let dmg = Math.floor(Math.random() * 11) + 12;
+      enemyHp -= dmg;
+      let msg = `Вы нанесли ${dmg} урона! `;
+
+      if (enemyHp <= 0) {
+        wins++;
+        localStorage.setItem('wins', wins);
+        msg = `🎉 Враг повержен! Всего побед: ${wins}`;
+        spawnNextEnemy();
+      } else {
+        // Враг бьет в ответ
+        let enemyAtk = enemies[currentEnemyIndex].atk;
+        playerHp -= enemyAtk;
+        msg += `Враг ударил на ${enemyAtk}.`;
+
+        if (playerHp <= 0) {
+          playerHp = playerMaxHp;
+          enemyHp = enemyMaxHp;
+          msg = `💀 Вы проиграли! Здоровье восстановлено.`;
+        }
+      }
+
+      document.getElementById('battleLog').innerText = msg;
+      updateUI();
+    }
+
+    function heal() {
+      if (playerHp >= playerMaxHp) {
+        document.getElementById('battleLog').innerText = "Здоровье уже полное!";
+        return;
+      }
+      playerHp = Math.min(playerMaxHp, playerHp + 25);
+      let enemyAtk = enemies[currentEnemyIndex].atk;
+      playerHp -= enemyAtk;
+      document.getElementById('battleLog').innerText = `🧪 Вы выпили зелье, но враг ударил на ${enemyAtk}!`;
+      if (playerHp <= 0) {
+        playerHp = playerMaxHp;
+        enemyHp = enemyMaxHp;
+        document.getElementById('battleLog').innerText = `💀 Вы не успели вылечиться и проиграли!`;
+      }
+      updateUI();
+    }
+
+    function spawnNextEnemy() {
+      currentEnemyIndex = Math.min(Math.floor(wins / 2), enemies.length - 1);
+      enemyMaxHp = enemies[currentEnemyIndex].maxHp;
+      enemyHp = enemyMaxHp;
+      playerHp = playerMaxHp;
+    }
+
+    function setTitle(title, reqWins) {
+      if (wins >= reqWins) {
+        activeTitle = title;
+        localStorage.setItem('activeTitle', title);
+        updateUI();
+      } else {
+        tg.showAlert(`Для этого титула нужно побед: ${reqWins}`);
+      }
+    }
+
+    function updateUI() {
+      document.getElementById('enemyName').innerText = `${enemies[currentEnemyIndex].name} (Ур. ${currentEnemyIndex + 1})`;
+      document.getElementById('enemyHpText').innerText = `HP: ${Math.max(0, enemyHp)} / ${enemyMaxHp}`;
+      document.getElementById('enemyHpBar').style.width = `${Math.max(0, (enemyHp / enemyMaxHp) * 100)}%`;
+
+      document.getElementById('playerTitle').innerText = activeTitle;
+      document.getElementById('playerHpText').innerText = `HP: ${Math.max(0, playerHp)} / ${playerMaxHp} | Побед: ${wins}`;
+      document.getElementById('playerHpBar').style.width = `${Math.max(0, (playerHp / playerMaxHp) * 100)}%`;
+    }
+  </script>
+</body>
+</html>
